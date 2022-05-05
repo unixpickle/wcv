@@ -167,19 +167,15 @@ func PrintCounts(f Flags, c *Counts, name, newlineChar string) {
 
 func ProcessCounts(r io.Reader, c *Counts) error {
 	br := bufio.NewReader(r)
-	onNewLine := true
 	onNewWord := true
 	for {
 		ch, size, err := br.ReadRune()
 		if size > 0 {
 			atomic.AddInt64(&c.Bytes.Value, int64(size))
 			atomic.AddInt64(&c.Chars.Value, 1)
-			if onNewLine {
+			if ch == '\n' {
 				atomic.AddInt64(&c.Lines.Value, 1)
 			}
-
-			// It appears `wc` doesn't respect Unicode newlines (on Ubuntu and macOS).
-			onNewLine = (ch == '\n')
 
 			if unicode.IsSpace(ch) {
 				onNewWord = true
