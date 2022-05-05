@@ -71,6 +71,10 @@ func main() {
 					flags.Words = true
 				} else if option == 'l' {
 					flags.Lines = true
+				} else {
+					fmt.Fprintln(os.Stderr, "wcv: illegal option -- "+string(option))
+					fmt.Fprintln(os.Stderr, "usage: wc [-clmw] [file ...]")
+					os.Exit(1)
 				}
 			}
 		} else {
