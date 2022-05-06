@@ -20,20 +20,16 @@ type Flags struct {
 	Chars bool
 }
 
+type AtomicValue struct {
+	Value int64
+}
+
 type Counts struct {
 	// Ensure alignment by packing all values in nested structs.
-	Bytes struct {
-		Value int64
-	}
-	Lines struct {
-		Value int64
-	}
-	Words struct {
-		Value int64
-	}
-	Chars struct {
-		Value int64
-	}
+	Bytes AtomicValue
+	Lines AtomicValue
+	Words AtomicValue
+	Chars AtomicValue
 }
 
 func (c *Counts) Add(other *Counts) {
