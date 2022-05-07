@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestProcessCounts(t *testing.T) {
+func TestCountsUpdate(t *testing.T) {
 	testData := []struct {
 		Text    string
 		Results Counts
@@ -18,7 +18,7 @@ func TestProcessCounts(t *testing.T) {
 	for i, data := range testData {
 		r := bytes.NewReader([]byte(data.Text))
 		actual := Counts{}
-		if err := ProcessCounts(r, &actual); err != nil {
+		if err := actual.Update(r); err != nil {
 			t.Fatal(err)
 		}
 		if actual != data.Results {

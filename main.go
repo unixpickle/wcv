@@ -1,89 +1,26 @@
 package main
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
-	"unicode"
 )
 
-type Flags struct {
-	Bytes bool
-	Lines bool
-	Words bool
-	Chars bool
-}
-
-type AtomicValue struct {
-	Value int64
-}
-
-type Counts struct {
-	// Ensure alignment by packing all values in nested structs.
-	Bytes AtomicValue
-	Lines AtomicValue
-	Words AtomicValue
-	Chars AtomicValue
-}
-
-func (c *Counts) Add(other *Counts) {
-	c.Bytes.Value += other.Bytes.Value
-	c.Lines.Value += other.Lines.Value
-	c.Words.Value += other.Words.Value
-	c.Chars.Value += other.Chars.Value
-}
-
 func main() {
-	flags := Flags{Bytes: true, Lines: true, Words: true}
-	inputFiles := []string{}
-
-	firstFlag := true
-	doneFlags := false
-	for _, arg := range os.Args[1:] {
-		if !doneFlags && strings.HasPrefix(arg, "-") {
-			if arg == "--" {
-				doneFlags = true
-				continue
-			}
-			for _, option := range arg[1:] {
-				if firstFlag {
-					// Override default behavior when argument is passed.
-					flags = Flags{}
-					firstFlag = false
-				}
-				if option == 'c' {
-					flags.Bytes = true
-					flags.Chars = false
-				} else if option == 'm' {
-					flags.Chars = true
-					flags.Bytes = false
-				} else if option == 'w' {
-					flags.Words = true
-				} else if option == 'l' {
-					flags.Lines = true
-				} else {
-					fmt.Fprintln(os.Stderr, "wcv: illegal option -- "+string(option))
-					fmt.Fprintln(os.Stderr, "usage: wc [-clmw] [file ...]")
-					os.Exit(1)
-				}
-			}
-		} else {
-			inputFiles = append(inputFiles, arg)
-			doneFlags = true
-		}
+	args, err := ParseArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		fmt.Fprintln(os.Stderr, UsageString)
+		os.Exit(1)
 	}
 
-	if len(inputFiles) == 0 {
-		PrintLive(flags, os.Stdin, "")
+	if len(args.Paths) == 0 {
+		PrintLive(args.Flags, os.Stdin, "")
 	} else {
 		total := Counts{}
-		for _, name := range inputFiles {
+		for _, name := range args.Paths {
 			if stat, err := os.Stat(name); err != nil {
 				fmt.Fprintln(os.Stderr, "wcv: "+name+": "+err.Error())
 				continue
@@ -96,11 +33,11 @@ func main() {
 				fmt.Fprintln(os.Stderr, "wcv: "+name+": "+err.Error())
 				continue
 			}
-			total.Add(PrintLive(flags, f, name))
+			total.Add(PrintLive(args.Flags, f, name))
 			f.Close()
 		}
-		if len(inputFiles) > 1 {
-			PrintCounts(flags, &total, "total", "\n")
+		if len(args.Paths) > 1 {
+			PrintCounts(args.Flags, &total, "total", "\n")
 		}
 	}
 }
@@ -131,7 +68,7 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 		}
 	}()
 
-	err := ProcessCounts(r, &counts)
+	err := counts.Update(r)
 	printLock.Lock()
 	close(doneCh)
 	PrintCounts(f, &counts, name, "\n")
@@ -144,48 +81,10 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 }
 
 func PrintCounts(f Flags, c *Counts, name, newlineChar string) {
-	mask := []bool{f.Lines, f.Words, f.Bytes, f.Chars}
-	ptrs := []*int64{&c.Lines.Value, &c.Words.Value, &c.Bytes.Value, &c.Chars.Value}
-	output := ""
-	for i, ptr := range ptrs {
-		if !mask[i] {
-			continue
-		}
-		value := atomic.LoadInt64(ptr)
-		output += fmt.Sprintf(" %7d", value)
-	}
+	output := c.Format(f)
 	if name != "" {
 		output += fmt.Sprintf(" %s", name)
 	}
 	output += newlineChar
 	fmt.Print(output)
-}
-
-func ProcessCounts(r io.Reader, c *Counts) error {
-	br := bufio.NewReader(r)
-	onNewWord := true
-	for {
-		ch, size, err := br.ReadRune()
-		if size > 0 {
-			atomic.AddInt64(&c.Bytes.Value, int64(size))
-			atomic.AddInt64(&c.Chars.Value, 1)
-			if ch == '\n' {
-				atomic.AddInt64(&c.Lines.Value, 1)
-			}
-
-			if unicode.IsSpace(ch) {
-				onNewWord = true
-			} else if onNewWord {
-				onNewWord = false
-				atomic.AddInt64(&c.Words.Value, 1)
-			}
-		}
-
-		if err != nil && errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return err
-		}
-	}
-	return nil
 }
