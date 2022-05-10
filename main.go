@@ -37,7 +37,7 @@ func main() {
 			f.Close()
 		}
 		if len(args.Paths) > 1 {
-			PrintCounts(args.Flags, &total, "total", "\n")
+			PrintCounts(args.Flags, &total, "total", true)
 		}
 	}
 }
@@ -63,7 +63,7 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 				return
 			default:
 			}
-			PrintCounts(f, &counts, name, "\r")
+			PrintCounts(f, &counts, name, false)
 			printLock.Unlock()
 		}
 	}()
@@ -71,7 +71,7 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 	err := counts.Update(r)
 	printLock.Lock()
 	close(doneCh)
-	PrintCounts(f, &counts, name, "\n")
+	PrintCounts(f, &counts, name, true)
 	printLock.Unlock()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "wcv: "+name+": "+err.Error())
@@ -80,11 +80,14 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 	return &counts
 }
 
-func PrintCounts(f Flags, c *Counts, name, newlineChar string) {
+func PrintCounts(f Flags, c *Counts, name string, final bool) {
 	output := c.Format(f)
 	if name != "" {
 		output += fmt.Sprintf(" %s", name)
 	}
-	output += newlineChar
-	fmt.Print(output)
+	if final {
+		fmt.Println(output)
+	} else {
+		fmt.Fprint(os.Stderr, output+"\r")
+	}
 }
