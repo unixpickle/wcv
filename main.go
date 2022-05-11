@@ -50,9 +50,8 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 
 	go func() {
 		ticker := time.NewTicker(time.Second / 4)
+		firstTick := time.After(time.Millisecond * 10)
 		defer ticker.Stop()
-		firstTick := make(chan struct{}, 1)
-		firstTick <- struct{}{}
 		previous := ""
 		for {
 			select {
