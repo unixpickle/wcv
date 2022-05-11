@@ -37,7 +37,7 @@ func main() {
 			f.Close()
 		}
 		if len(args.Paths) > 1 {
-			PrintCounts(args.Flags, &total, "total", true)
+			PrintCounts(args.Flags, &total, "total", "", true)
 		}
 	}
 }
@@ -51,6 +51,7 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 	go func() {
 		ticker := time.NewTicker(time.Second / 2)
 		defer ticker.Stop()
+		previous := ""
 		for {
 			select {
 			case <-ticker.C:
@@ -63,7 +64,7 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 				return
 			default:
 			}
-			PrintCounts(f, &counts, name, false)
+			previous = PrintCounts(f, &counts, name, previous, false)
 			printLock.Unlock()
 		}
 	}()
@@ -71,7 +72,7 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 	err := counts.Update(r)
 	printLock.Lock()
 	close(doneCh)
-	PrintCounts(f, &counts, name, true)
+	PrintCounts(f, &counts, name, "", true)
 	printLock.Unlock()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "wcv: "+name+": "+err.Error())
@@ -80,14 +81,17 @@ func PrintLive(f Flags, r io.Reader, name string) *Counts {
 	return &counts
 }
 
-func PrintCounts(f Flags, c *Counts, name string, final bool) {
+func PrintCounts(f Flags, c *Counts, name, previous string, final bool) string {
 	output := c.Format(f)
 	if name != "" {
 		output += fmt.Sprintf(" %s", name)
 	}
-	if final {
-		fmt.Println(output)
-	} else {
-		fmt.Fprint(os.Stderr, output+"\r")
+	if output != previous {
+		if final {
+			fmt.Println(output)
+		} else {
+			fmt.Fprint(os.Stderr, output+"\r")
+		}
 	}
+	return output
 }
